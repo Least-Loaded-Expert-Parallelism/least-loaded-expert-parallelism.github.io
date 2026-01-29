@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLEP: Least-Loaded Expert Parallelism</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #fafbfc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f0f4f8;
+            --accent-teal: #0d9488;
+            --accent-teal-light: #14b8a6;
+            --accent-blue: #0369a1;
+            --accent-orange: #ea580c;
+            --accent-amber: #d97706;
+            --accent-red: #dc2626;
+            --accent-emerald: #059669;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --gradient-1: linear-gradient(135deg, #0d9488 0%, #0369a1 100%);
+            --gradient-2: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+        }
+        
+        .bg-pattern {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(13, 148, 136, 0.04) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(3, 105, 161, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
+        .container-wide { max-width: 1300px; margin: 0 auto; padding: 0 2rem; }
+        
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+        
+        .hero-icon {
+            width: 110px; height: 110px;
+            background: var(--gradient-1);
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 50px rgba(13, 148, 136, 0.25);
+            animation: float 6s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .hero h1 {
+            font-family: 'Source Serif 4', serif;
+            font-size: clamp(2.5rem, 5vw, 3.75rem);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .hero h2 {
+            font-family: 'Source Serif 4', serif;
+            font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+            font-weight: 400;
+            color: var(--text-secondary);
+            max-width: 800px;
+            margin-bottom: 2rem;
+        }
+        
+        .hero-description {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 750px;
+            margin-bottom: 2.5rem;
+            line-height: 1.8;
+        }
+        
+        .highlight-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+        
+        .pill {
+            padding: 0.5rem 1.1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .pill.speedup { background: rgba(5, 150, 105, 0.1); color: var(--accent-emerald); border: 1px solid rgba(5, 150, 105, 0.3); }
+        .pill.memory { background: rgba(13, 148, 136, 0.1); color: var(--accent-teal); border: 1px solid rgba(13, 148, 136, 0.3); }
+        .pill.exact { background: rgba(3, 105, 161, 0.1); color: var(--accent-blue); border: 1px solid rgba(3, 105, 161, 0.3); }
+        .pill.backward { background: rgba(234, 88, 12, 0.1); color: var(--accent-orange); border: 1px solid rgba(234, 88, 12, 0.3); }
+        
+        .cta-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 3rem;
+        }
+        
+        .btn {
+            padding: 0.85rem 1.75rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary { background: var(--accent-teal); color: #fff; }
+        .btn-primary:hover { background: var(--accent-teal-light); transform: translateY(-2px); box-shadow: 0 10px 30px rgba(13, 148, 136, 0.3); }
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); }
+        .btn-secondary:hover { background: var(--bg-tertiary); transform: translateY(-2px); }
+        
+        /* Authors */
+        .authors { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; margin-bottom: 1rem; }
+        .author { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: var(--text-primary); transition: transform 0.3s ease; }
+        .author:hover { transform: translateY(-3px); }
+        .author-img { width: 70px; height: 70px; border-radius: 50%; border: 3px solid var(--bg-secondary); margin-bottom: 0.5rem; background: var(--gradient-1); box-shadow: var(--shadow-md); object-fit: cover; }
+        img.author-img { display: block; }
+        .author-name { font-size: 0.9rem; font-weight: 500; }
+        .affiliation { color: var(--accent-teal); font-size: 0.95rem; font-weight: 500; margin-top: 0.5rem; }
+        .corresponding-author { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.35rem; }
+        .corresponding-author a { color: var(--accent-teal); text-decoration: none; }
+        .corresponding-author a:hover { text-decoration: underline; }
+        
+        /* Sections */
+        section { padding: 5rem 0; }
+        
+        .section-title {
+            font-family: 'Source Serif 4', serif;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 60px;
+            height: 4px;
+            background: var(--gradient-1);
+            margin: 1rem auto 0;
+            border-radius: 2px;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        /* Abstract */
+        .abstract {
+            font-size: 1.05rem;
+            line-height: 1.9;
+            color: var(--text-secondary);
+        }
+        
+        .abstract strong { color: var(--text-primary); }
+        
+        /* Contributions */
+        .contributions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .contribution-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .contribution-card:hover { border-color: var(--accent-teal); transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+        
+        .contribution-icon {
+            width: 52px; height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .contribution-card:nth-child(1) .contribution-icon { background: rgba(5, 150, 105, 0.12); }
+        .contribution-card:nth-child(2) .contribution-icon { background: rgba(234, 88, 12, 0.12); }
+        .contribution-card:nth-child(3) .contribution-icon { background: rgba(13, 148, 136, 0.12); }
+        .contribution-card:nth-child(4) .contribution-icon { background: rgba(3, 105, 161, 0.12); }
+        
+        .contribution-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
+        .contribution-card p { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.7; }
+        
+        /* Method comparison */
+        .method-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        
+        @media (max-width: 768px) { .method-comparison { grid-template-columns: 1fr; } }
+        
+        .method-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .method-card img { width: 100%; height: auto; display: block; }
+        .method-card-content { padding: 1.5rem; }
+        .method-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .method-card.standard h3 { color: var(--accent-red); }
+        .method-card.llep h3 { color: var(--accent-emerald); }
+        .method-card p { font-size: 0.9rem; color: var(--text-secondary); }
+        
+        /* Figures */
+        .figure-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            margin: 2rem 0;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .figure-container img { width: 100%; height: auto; display: block; }
+        
+        .figure-caption {
+            padding: 1.25rem 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+        
+        .figure-caption strong { color: var(--text-primary); }
+        
+        .figures-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 768px) { .figures-row { grid-template-columns: 1fr; } }
+        
+        .figure-container-small {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .figure-container-small img { width: 100%; height: auto; display: block; }
+        
+        /* Charts */
+        .chart-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .chart-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        /* Tables */
+        .table-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            margin: 2rem 0;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .table-title {
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 0.875rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        td { font-size: 0.9rem; }
+        
+        tr:last-child td { border-bottom: none; }
+        
+        .speedup-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--accent-emerald);
+        }
+        
+        /* Results grid */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .result-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .result-value {
+            font-family: 'Source Serif 4', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: var(--gradient-2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .result-label { font-size: 1rem; font-weight: 600; margin-top: 0.5rem; }
+        .result-detail { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+        
+        /* Takeaway */
+        .takeaway-box {
+            background: linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(3, 105, 161, 0.08) 100%);
+            border: 1px solid rgba(13, 148, 136, 0.25);
+            border-radius: 16px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .takeaway-box h4 { font-size: 1rem; font-weight: 600; color: var(--accent-teal); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+        .takeaway-box p { font-size: 0.95rem; color: var(--text-secondary); line-height: 1.7; }
+        
+        /* BibTeX */
+        .bibtex-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .bibtex-header {
+            padding: 1rem 1.5rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .bibtex-header span { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; }
+        
+        .copy-btn {
+            padding: 0.5rem 1rem;
+            background: var(--accent-teal);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .copy-btn:hover { background: var(--accent-teal-light); }
+        
+        .bibtex-code {
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        
+        /* Footer */
+        footer {
+            padding: 3rem 2rem;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            background: var(--bg-tertiary);
+        }
+        
+        footer a { color: var(--accent-teal); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            .hero { padding: 2rem 1rem; }
+            .hero-icon { width: 80px; height: 80px; font-size: 2rem; }
+            section { padding: 3rem 0; }
+            .charts-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+    
+    <!-- Hero -->
+    <header class="hero">
+        <div class="hero-icon">⚡</div>
+        <h1>Least-Loaded Expert Parallelism</h1>
+        <h2>Load Balancing An Imbalanced Mixture-of-Experts</h2>
+        
+        <p class="hero-description">
+            A novel expert parallelism algorithm that dynamically redistributes excess tokens and expert weights from overloaded devices to underutilized ones, ensuring balanced workloads, minimum latency, and optimal memory usage across GPU devices.
+        </p>
+        
+        <div class="highlight-pills">
+            <span class="pill speedup">⚡ Up to 5× Speedup</span>
+            <span class="pill memory">💾 4× Lower Peak Memory</span>
+            <span class="pill exact">✓ Exact Computation</span>
+            <span class="pill backward">↔ Backward Pass Support</span>
+        </div>
+        
+        <div class="cta-buttons">
+            <a href="https://www.arxiv.org/abs/2601.17111" class="btn btn-primary" target="_blank">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Read the Paper
+            </a>
+            <a href="https://github.com/SalesforceAIResearch/LeastLoadedEP" class="btn btn-secondary" target="_blank">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                GitHub
+            </a>
+            <a href="https://huggingface.co/spaces/Salesforce/LeastLoadedEP" class="btn btn-secondary" target="_blank">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                Demo
+            </a>
+        </div>
+        
+        <div class="authors">
+            <a href="https://scholar.google.com/citations?user=HN8VxX4AAAAJ&hl=en" class="author" target="_blank">
+                <img class="author-img" src="https://scholar.googleusercontent.com/citations?view_op=view_photo&user=HN8VxX4AAAAJ&citpid=2" alt="Xuan-Phi Nguyen" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="author-img" style="display:none;"></div>
+                <span class="author-name">Xuan-Phi Nguyen</span>
+            </a>
+            <a href="https://scholar.google.com/citations?user=a-dG59sAAAAJ&hl=en" class="author" target="_blank">
+                <img class="author-img" src="https://scholar.googleusercontent.com/citations?view_op=view_photo&user=a-dG59sAAAAJ&citpid=2" alt="Shrey Pandit" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="author-img" style="display:none;"></div>
+                <span class="author-name">Shrey Pandit</span>
+            </a>
+            <a href="https://scholar.google.com/citations?user=OUw3iQgAAAAJ&hl=en" class="author" target="_blank">
+                <img class="author-img" src="https://scholar.googleusercontent.com/citations?view_op=view_photo&user=OUw3iQgAAAAJ&citpid=2" alt="Austin Xu" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="author-img" style="display:none;"></div>
+                <span class="author-name">Austin Xu</span>
+            </a>
+            <a href="https://scholar.google.com/citations?user=vaSdahkAAAAJ&hl=en" class="author" target="_blank">
+                <img class="author-img" src="https://scholar.googleusercontent.com/citations?view_op=view_photo&user=vaSdahkAAAAJ&citpid=2" alt="Caiming Xiong" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="author-img" style="display:none;"></div>
+                <span class="author-name">Caiming Xiong</span>
+            </a>
+            <a href="https://scholar.google.com/citations?user=hR249csAAAAJ&hl=en" class="author" target="_blank">
+                <img class="author-img" src="https://scholar.googleusercontent.com/citations?view_op=view_photo&user=hR249csAAAAJ&citpid=2" alt="Shafiq Joty" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="author-img" style="display:none;"></div>
+                <span class="author-name">Shafiq Joty</span>
+            </a>
+        </div>
+        <p class="affiliation">Salesforce AI Research</p>
+        <p class="corresponding-author">Corresponding author: <a href="mailto:xnguyen@salesforce.com">xnguyen@salesforce.com</a></p>
+    </header>
+    
+    <!-- Abstract -->
+    <section id="abstract">
+        <div class="container">
+            <h2 class="section-title">Abstract</h2>
+            <div class="card abstract">
+                <p><strong>Mixture-of-Experts (MoE)</strong> models are typically pre-trained with explicit load-balancing constraints to ensure statistically balanced expert routing. Despite this, we observe that even well-trained MoE models exhibit significantly <strong>imbalanced routing</strong>. This behavior is arguably natural—and even desirable—as imbalanced routing allows models to concentrate domain-specific knowledge within a subset of experts.</p>
+                <br>
+                <p><strong>Expert parallelism (EP)</strong> is designed to scale MoE models by distributing experts across multiple devices, but with a less-discussed assumption of balanced routing. Under extreme imbalance, EP can funnel a disproportionate number of tokens to a small number of experts, leading to <strong>compute- and memory-bound failures</strong> on overloaded devices during post-training or inference, where explicit load balancing is often inapplicable.</p>
+                <br>
+                <p>We propose <strong>Least-Loaded Expert Parallelism (LLEP)</strong>, a novel EP algorithm that dynamically reroutes excess tokens and associated expert parameters from overloaded devices to underutilized ones. This ensures that all devices complete their workloads within the <strong>minimum collective latency</strong> while respecting memory constraints. Across different model scales, LLEP achieves up to <strong>5× speedup</strong> and <strong>4× reduction in peak memory usage</strong> compared to standard EP, enabling faster and higher-throughput post-training and inference with ~1.9× faster for gpt-oss-120b.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Key Contributions -->
+    <section id="contributions">
+        <div class="container">
+            <h2 class="section-title">Key Contributions</h2>
+            <div class="contributions-grid">
+                <div class="contribution-card">
+                    <div class="contribution-icon">🔄</div>
+                    <h3>Dynamic Load Balancing</h3>
+                    <p>LLEP dynamically redistributes tokens and expert weights from overloaded GPUs to underutilized ones at runtime, achieving balanced execution without altering model behavior.</p>
+                </div>
+                <div class="contribution-card">
+                    <div class="contribution-icon">⚡</div>
+                    <h3>Significant Speedup</h3>
+                    <p>Achieves up to 5× speedup over standard EP under extreme imbalance scenarios, with real-world models like gpt-oss-120b seeing ~1.9× faster throughput.</p>
+                </div>
+                <div class="contribution-card">
+                    <div class="contribution-icon">💾</div>
+                    <h3>Memory Efficiency</h3>
+                    <p>Reduces peak memory usage by up to 4× compared to standard EP, preventing OOM failures and enabling larger batch sizes on the same hardware.</p>
+                </div>
+                <div class="contribution-card">
+                    <div class="contribution-icon">✓</div>
+                    <h3>Exact Computation</h3>
+                    <p>Unlike other methods, LLEP is an exact MoE computation algorithm with full backward pass support, preserving model integrity for both training and inference.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Method -->
+    <section id="method">
+        <div class="container">
+            <h2 class="section-title">Method Overview</h2>
+            
+            <div class="method-comparison">
+                <div class="method-card standard">
+                    <img src="imgs/standard_ep2.png" alt="Standard Expert Parallelism">
+                    <div class="method-card-content">
+                        <h3>✗ Standard EP</h3>
+                        <p>Experts are distributed across devices, but imbalanced routing causes some devices (GPU 0) to be overloaded while others remain underutilized (GPU 1).</p>
+                    </div>
+                </div>
+                <div class="method-card llep">
+                    <img src="imgs/loadbal_ep2.png" alt="LLEP">
+                    <div class="method-card-content">
+                        <h3>✓ LLEP (Ours)</h3>
+                        <p>Dynamically redistributes excess tokens and corresponding expert weights from overloaded devices to underloaded devices for balanced execution.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="takeaway-box">
+                <h4>💡 Key Insight</h4>
+                <p>When the globally assigned load on an expert group exceeds a capacity threshold, LLEP assigns tokens up to that threshold and transfers the remaining tokens along with the corresponding expert weights to the least-loaded devices. This enables workload sharing while minimizing communication overhead through intelligent cost-aware decisions.</p>
+            </div>
+            
+            <!-- Token Spill Visualization GIFs -->
+            <h3 style="text-align: center; margin-top: 3rem; margin-bottom: 1.5rem; font-size: 1.3rem; font-weight: 600;">Token Spill Visualization</h3>
+            <div class="method-comparison">
+                <div class="method-card">
+                    <img src="gif_some_spill.gif" alt="Some Token Spill Visualization">
+                    <div class="method-card-content">
+                        <h3 style="color: var(--accent-teal);">Moderate Imbalance</h3>
+                        <p>Visualization of token redistribution under moderate expert routing imbalance. LLEP dynamically balances the workload across devices.</p>
+                    </div>
+                </div>
+                <div class="method-card">
+                    <img src="gif_high_spill.gif" alt="High Token Spill Visualization">
+                    <div class="method-card-content">
+                        <h3 style="color: var(--accent-orange);">High Imbalance</h3>
+                        <p>Visualization under extreme imbalance conditions. LLEP efficiently redistributes excess tokens to prevent overload on any single device.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Main Results -->
+    <section id="results">
+        <div class="container">
+            <h2 class="section-title">Main Results</h2>
+            
+            <div class="results-grid">
+                <div class="result-card">
+                    <div class="result-value">5×</div>
+                    <div class="result-label">Maximum Speedup</div>
+                    <div class="result-detail">Over standard EP (95% imbalance)</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-value">4×</div>
+                    <div class="result-label">Memory Reduction</div>
+                    <div class="result-detail">Peak memory usage per GPU</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-value">1.9×</div>
+                    <div class="result-label">End-to-End Speedup</div>
+                    <div class="result-detail">gpt-oss-120b (P=32)</div>
+                </div>
+            </div>
+            
+            <!-- Speedup Chart -->
+            <div class="chart-container">
+                <div class="chart-title">Speedup of LLEP over Standard EP</div>
+                <div class="chart-subtitle">MoE config: E=128, D=H=2048, K=4. Higher concentration → greater speedup.</div>
+                <canvas id="speedupChart" height="180"></canvas>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Model Comparison -->
+    <section id="model-comparison" style="background: var(--bg-tertiary);">
+        <div class="container-wide">
+            <h2 class="section-title">Performance Across Model Architectures</h2>
+            
+            <div class="charts-row">
+                <div class="chart-container">
+                    <div class="chart-title">gpt-oss-120b</div>
+                    <div class="chart-subtitle">N=128, D=H=2880, K=4</div>
+                    <canvas id="gptossSpeedup" height="250"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">DeepSeek-V3</div>
+                    <div class="chart-subtitle">N=256, D=7168, H=2048, K=8</div>
+                    <canvas id="deepseekSpeedup" height="250"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Kimi-K2</div>
+                    <div class="chart-subtitle">N=384, D=7168, H=2048, K=8</div>
+                    <canvas id="kimiSpeedup" height="250"></canvas>
+                </div>
+            </div>
+            
+            <div class="charts-row" style="margin-top: 1rem;">
+                <div class="chart-container">
+                    <div class="chart-title">Peak Memory: gpt-oss-120b (GB)</div>
+                    <canvas id="gptossMemory" height="250"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Peak Memory: DeepSeek-V3 (GB)</div>
+                    <canvas id="deepseekMemory" height="250"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Peak Memory: Kimi-K2 (GB)</div>
+                    <canvas id="kimiMemory" height="250"></canvas>
+                </div>
+            </div>
+            
+            <div class="takeaway-box">
+                <h4>📊 Key Observations</h4>
+                <p>LLEP maintains consistently low memory consumption across all imbalance scenarios, while standard EP's memory usage grows dramatically with imbalance (up to 100GB for Kimi-K2). This enables LLEP to handle larger models with fewer GPUs while preventing OOM crashes under extreme conditions.</p>
+            </div>
+        </div>
+    </section>
+    
+    <!-- End-to-End Results -->
+    <section id="e2e-results">
+        <div class="container">
+            <h2 class="section-title">End-to-End Full Model Results</h2>
+            
+            <div class="chart-container">
+                <div class="chart-title">End-to-End Throughput Comparison</div>
+                <div class="chart-subtitle">Real pre-trained models on math reasoning dataset (nemotron-math)</div>
+                <canvas id="e2eChart" height="180"></canvas>
+            </div>
+            
+            <div class="table-container">
+                <div class="table-title">End-to-End Throughput Speedup</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>EP World Size (P)</th>
+                            <th>Standard EP (K tok/s)</th>
+                            <th>LLEP (K tok/s)</th>
+                            <th>Speedup</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td rowspan="3"><strong>gpt-oss-20b</strong></td>
+                            <td>8</td>
+                            <td>81.24</td>
+                            <td>113.52</td>
+                            <td><span class="speedup-badge">1.4×</span></td>
+                        </tr>
+                        <tr>
+                            <td>16</td>
+                            <td>146.8</td>
+                            <td>216.65</td>
+                            <td><span class="speedup-badge">1.5×</span></td>
+                        </tr>
+                        <tr>
+                            <td>32</td>
+                            <td>146.8</td>
+                            <td>325.5</td>
+                            <td><span class="speedup-badge">2.2×</span></td>
+                        </tr>
+                        <tr>
+                            <td rowspan="3"><strong>gpt-oss-120b</strong></td>
+                            <td>8</td>
+                            <td>80.0</td>
+                            <td>88.0</td>
+                            <td><span class="speedup-badge">1.1×</span></td>
+                        </tr>
+                        <tr>
+                            <td>16</td>
+                            <td>110.08</td>
+                            <td>146.72</td>
+                            <td><span class="speedup-badge">1.3×</span></td>
+                        </tr>
+                        <tr>
+                            <td>32</td>
+                            <td>131.07</td>
+                            <td>245.89</td>
+                            <td><span class="speedup-badge">1.9×</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Additional Figures -->
+    <section id="figures" style="background: var(--bg-tertiary);">
+        <div class="container">
+            <h2 class="section-title">Expert & GPU Allocation Visualization</h2>
+            
+            <div class="figures-row">
+                <div class="figure-container-small">
+                    <img src="imgs/gptoss20b_expert_alloc.png" alt="Expert allocation for gpt-oss-20b">
+                    <div class="figure-caption">
+                        <strong>Expert Allocation:</strong> How LLEP redistributes workload across GPUs compared to standard EP.
+                    </div>
+                </div>
+                
+                <div class="figure-container-small">
+                    <img src="imgs/gptoss20b_gpu_alloc.png" alt="GPU allocation for gpt-oss-20b">
+                    <div class="figure-caption">
+                        <strong>GPU Allocation:</strong> Per-device token distribution showing balanced load with LLEP.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Citation -->
+    <section id="citation">
+        <div class="container">
+            <h2 class="section-title">Citation</h2>
+            <div class="bibtex-container">
+                <div class="bibtex-header">
+                    <span>BibTeX</span>
+                    <button class="copy-btn" onclick="copyBibtex()">Copy</button>
+                </div>
+                <pre class="bibtex-code">@misc{nguyen2026leastloadedexpertparallelismload,
+      title={Least-Loaded Expert Parallelism: Load Balancing An Imbalanced Mixture-of-Experts}, 
+      author={Xuan-Phi Nguyen and Shrey Pandit and Austin Xu and Caiming Xiong and Shafiq Joty},
+      year={2026},
+      eprint={2601.17111},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2601.17111}, 
+}</pre>
+            </div>
+        </div>
+    </section>
+    
+    <footer>
+        <div class="container">
+            <p>This website is licensed under a <a href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.</p>
+        </div>
+    </footer>
+    
+    <script>
+        // Color palette
+        const colors = {
+            gray: 'rgba(148, 163, 184, 0.8)',
+            teal: 'rgba(13, 148, 136, 0.8)',
+            blue: 'rgba(3, 105, 161, 0.8)',
+            orange: 'rgba(234, 88, 12, 0.8)',
+            red: 'rgba(220, 38, 38, 0.8)',
+            grayLight: 'rgba(148, 163, 184, 0.4)',
+            tealLight: 'rgba(13, 148, 136, 0.4)',
+            blueLight: 'rgba(3, 105, 161, 0.4)',
+            orangeLight: 'rgba(234, 88, 12, 0.4)',
+            redLight: 'rgba(220, 38, 38, 0.4)',
+        };
+        
+        // Main Speedup Chart
+        new Chart(document.getElementById('speedupChart'), {
+            type: 'bar',
+            data: {
+                labels: ['16 experts', '4 experts', '1 expert'],
+                datasets: [
+                    { label: 'Balanced', data: [1.05, 1.02, 1.00], backgroundColor: colors.gray },
+                    { label: '30%', data: [1.50, 1.75, 1.92], backgroundColor: colors.teal },
+                    { label: '50%', data: [2.31, 2.54, 2.74], backgroundColor: colors.blue },
+                    { label: '80%', data: [3.65, 3.65, 4.19], backgroundColor: colors.orange },
+                    { label: '95%', data: [4.26, 4.16, 4.86], backgroundColor: colors.red }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'top' } },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Speedup (×)' } } }
+            }
+        });
+        
+        // Model speedup charts
+        const speedupOptions = {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: 7, title: { display: true, text: 'Speedup (×)' } } }
+        };
+        
+        new Chart(document.getElementById('gptossSpeedup'), {
+            type: 'bar',
+            data: {
+                labels: ['16', '4', '1'],
+                datasets: [
+                    { label: 'Bal', data: [1.07, 1.07, 1.07], backgroundColor: colors.gray },
+                    { label: '30%', data: [1.73, 2.09, 2.41], backgroundColor: colors.teal },
+                    { label: '50%', data: [2.85, 3.05, 3.48], backgroundColor: colors.blue },
+                    { label: '80%', data: [4.37, 4.47, 5.26], backgroundColor: colors.orange },
+                    { label: '95%', data: [5.19, 5.22, 6.11], backgroundColor: colors.red }
+                ]
+            },
+            options: speedupOptions
+        });
+        
+        new Chart(document.getElementById('deepseekSpeedup'), {
+            type: 'bar',
+            data: {
+                labels: ['16', '4', '1'],
+                datasets: [
+                    { label: 'Bal', data: [0.92, 0.92, 0.92], backgroundColor: colors.gray },
+                    { label: '30%', data: [1.69, 1.76, 1.96], backgroundColor: colors.teal },
+                    { label: '50%', data: [2.65, 2.83, 2.77], backgroundColor: colors.blue },
+                    { label: '80%', data: [3.83, 3.64, 4.23], backgroundColor: colors.orange },
+                    { label: '95%', data: [4.59, 4.64, 5.13], backgroundColor: colors.red }
+                ]
+            },
+            options: speedupOptions
+        });
+        
+        new Chart(document.getElementById('kimiSpeedup'), {
+            type: 'bar',
+            data: {
+                labels: ['16', '4', '1'],
+                datasets: [
+                    { label: 'Bal', data: [1.03, 1.03, 1.03], backgroundColor: colors.gray },
+                    { label: '30%', data: [1.80, 1.94, 1.48], backgroundColor: colors.teal },
+                    { label: '50%', data: [2.73, 2.85, 2.74], backgroundColor: colors.blue },
+                    { label: '80%', data: [4.01, 3.96, 4.09], backgroundColor: colors.orange },
+                    { label: '95%', data: [4.83, 4.67, 5.03], backgroundColor: colors.red }
+                ]
+            },
+            options: speedupOptions
+        });
+        
+        // Memory charts
+        const memoryOptions = (max) => ({
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, max: max, title: { display: true, text: 'Peak Memory (GB)' } } }
+        });
+        
+        new Chart(document.getElementById('gptossMemory'), {
+            type: 'bar',
+            data: {
+                labels: ['16', '4', '1'],
+                datasets: [
+                    { label: 'EP-Bal', data: [14.64, 14.64, 14.64], backgroundColor: colors.grayLight, borderColor: colors.gray, borderWidth: 2 },
+                    { label: 'LLEP-Bal', data: [11.47, 11.47, 11.47], backgroundColor: colors.gray },
+                    { label: 'EP-95%', data: [61.07, 61.34, 61.38], backgroundColor: colors.redLight, borderColor: colors.red, borderWidth: 2 },
+                    { label: 'LLEP-95%', data: [14.82, 14.65, 14.61], backgroundColor: colors.red }
+                ]
+            },
+            options: memoryOptions(70)
+        });
+        
+        new Chart(document.getElementById('deepseekMemory'), {
+            type: 'bar',
+            data: {
+                labels: ['16', '4', '1'],
+                datasets: [
+                    { label: 'EP-Bal', data: [32.03, 32.03, 32.03], backgroundColor: colors.grayLight, borderColor: colors.gray, borderWidth: 2 },
+                    { label: 'LLEP-Bal', data: [32.25, 32.25, 32.25], backgroundColor: colors.gray },
+                    { label: 'EP-95%', data: [89.86, 89.98, 90.06], backgroundColor: colors.redLight, borderColor: colors.red, borderWidth: 2 },
+                    { label: 'LLEP-95%', data: [33.38, 33.53, 33.15], backgroundColor: colors.red }
+                ]
+            },
+            options: memoryOptions(100)
+        });
+        
+        new Chart(document.getElementById('kimiMemory'), {
+            type: 'bar',
+            data: {
+                labels: ['16', '4', '1'],
+                datasets: [
+                    { label: 'EP-Bal', data: [42.60, 42.60, 42.60], backgroundColor: colors.grayLight, borderColor: colors.gray, borderWidth: 2 },
+                    { label: 'LLEP-Bal', data: [42.82, 42.82, 42.82], backgroundColor: colors.gray },
+                    { label: 'EP-95%', data: [100.39, 100.68, 100.52], backgroundColor: colors.redLight, borderColor: colors.red, borderWidth: 2 },
+                    { label: 'LLEP-95%', data: [43.98, 44.21, 43.67], backgroundColor: colors.red }
+                ]
+            },
+            options: memoryOptions(110)
+        });
+        
+        // E2E Chart
+        new Chart(document.getElementById('e2eChart'), {
+            type: 'bar',
+            data: {
+                labels: ['P=8', 'P=16', 'P=32', 'P=8', 'P=16', 'P=32'],
+                datasets: [
+                    { 
+                        label: 'Standard EP',
+                        data: [81.24, 146.8, 146.8, 80, 110.08, 131.07],
+                        backgroundColor: [colors.blueLight, colors.blueLight, colors.blueLight, colors.orangeLight, colors.orangeLight, colors.orangeLight],
+                        borderColor: [colors.blue, colors.blue, colors.blue, colors.orange, colors.orange, colors.orange],
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'LLEP (Ours)',
+                        data: [113.52, 216.65, 325.5, 88, 146.72, 245.89],
+                        backgroundColor: [colors.blue, colors.blue, colors.blue, colors.orange, colors.orange, colors.orange]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    title: { display: true, text: '← gpt-oss-20b | gpt-oss-120b →', font: { size: 12, weight: 'normal' } }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Throughput (K tokens/s)' } } }
+            }
+        });
+        
+        function copyBibtex() {
+            const bibtex = document.querySelector('.bibtex-code').textContent;
+            navigator.clipboard.writeText(bibtex).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
